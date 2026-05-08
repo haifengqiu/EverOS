@@ -4,7 +4,7 @@ LLM Provider Protocol for memory layer.
 This module defines the abstract interface that all LLM providers must implement.
 """
 
-from typing import Protocol
+from typing import AsyncGenerator, Protocol
 
 
 class LLMProvider(Protocol):
@@ -34,6 +34,29 @@ class LLMProvider(Protocol):
 
         Raises:
             Exception: If generation fails
+        """
+        ...
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Generate a streaming response for the given prompt.
+
+        Yields tokens as they arrive, providing early feedback during LLM calls.
+
+        Args:
+            prompt: Input prompt text
+            temperature: Optional temperature override
+            max_tokens: Optional max tokens override
+            response_format: Optional response format
+
+        Yields:
+            str: Each chunk of generated text
         """
         ...
 

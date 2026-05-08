@@ -1,4 +1,5 @@
 import os
+from typing import AsyncGenerator
 from memory_layer.llm.openai_provider import OpenAIProvider
 from core.observation.stage_timer import timed
 
@@ -92,3 +93,17 @@ class LLMProvider:
             return await self.provider.generate(
                 prompt, temperature, max_tokens, extra_body, response_format
             )
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Generate a streaming response, yielding tokens as they arrive."""
+        with timed("call_llm_stream"):
+            async for chunk in self.provider.generate_stream(
+                prompt, temperature, max_tokens, response_format
+            ):
+                yield chunk
