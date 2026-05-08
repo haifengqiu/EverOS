@@ -9,6 +9,7 @@ import json
 import os
 import random
 import time
+from typing import AsyncGenerator
 
 import aiohttp
 
@@ -301,6 +302,103 @@ class OpenAIProvider(LLMProvider):
             prompt, temperature, max_tokens, response_format
         )
         return await self._execute_with_retry(data, start_time)
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Generate a streaming response, yielding tokens as they arrive.
+
+        Unlike generate(), this method does not use the retry/key-rotation
+        infrastructure — streaming connections are long-lived and errors
+        partway through cannot be meaningfully retried. A single key is used.
+        """
+        start_time = time.perf_counter()
+        data = self._build_request_data(
+            prompt, temperature, max_tokens, response_format
+        )
+        data["stream"] = True
+
+        api_key = self._key_rotator.get_rotation()[0]
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "text/event-stream",
+        }
+
+        first_chunk_time = None
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=600, sock_connect=30, sock_read=60)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    f"{self.base_url}/chat/completions",
+                    json=data,
+                    headers=headers,
+                ) as response:
+                    if response.status != 200:
+                        raw = await response.read()
+                        try:
+                            error_data = json.loads(raw.decode())
+                        except (json.JSONDecodeError, UnicodeDecodeError):
+                            error_data = {"error": {"message": raw[:500].decode(errors="replace")}}
+                        error_msg = self._extract_error_message(error_data, response.status)
+                        raise LLMError(f"HTTP Error {response.status}: {error_msg}")
+
+                    buffer = ""
+                    async for byte_chunk in response.content.iter_chunked(512):
+                        try:
+                            chunk_str = byte_chunk.decode("utf-8", errors="replace")
+                            chunk_str = chunk_str.encode("utf-8", errors="replace").decode("utf-8")
+                            buffer += chunk_str
+                        except UnicodeDecodeError:
+                            continue
+
+                        while "\n" in buffer:
+                            line, buffer = buffer.split("\n", 1)
+                            line = line.strip()
+                            if not line or not line.startswith("data: "):
+                                continue
+                            chunk_data = line[6:]
+                            if chunk_data == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(chunk_data)
+                                content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                if content:
+                                    if first_chunk_time is None:
+                                        first_chunk_time = time.perf_counter()
+                                        logger.debug(
+                                            "[OpenAI-%s] First chunk: %.2fs",
+                                            self.model,
+                                            first_chunk_time - start_time,
+                                        )
+                                    yield content
+                            except json.JSONDecodeError:
+                                continue
+
+            end_time = time.perf_counter()
+            logger.debug("[OpenAI-%s] Stream completed: %.2fs", self.model, end_time - start_time)
+            record_llm_request(self.model, "success")
+
+            if self.enable_stats:
+                self.current_call_stats = {
+                    "duration": end_time - start_time,
+                    "first_chunk_latency": first_chunk_time - start_time if first_chunk_time else None,
+                    "timestamp": time.time(),
+                }
+
+        except aiohttp.ClientError as exc:
+            record_llm_request(self.model, "client_error")
+            raise LLMError(f"Stream request failed: {exc}") from exc
+        except LLMError:
+            raise
+        except Exception as exc:
+            record_llm_request(self.model, "client_error")
+            raise LLMError(f"Stream request failed: {exc}") from exc
 
     async def test_connection(self) -> bool:
         """Test the connection to the API endpoint."""
