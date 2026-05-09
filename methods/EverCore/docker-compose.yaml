@@ -102,6 +102,12 @@ services:
     environment:
       ETCD_ENDPOINTS: milvus-etcd:2479
       MINIO_ADDRESS: milvus-minio:9000
+      NO_PROXY: "milvus-etcd,milvus-minio,localhost,127.0.0.1"
+      no_proxy: "milvus-etcd,milvus-minio,localhost,127.0.0.1"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
     ports:
       - "19530:19530"
       - "9091:9091"
