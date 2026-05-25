@@ -383,6 +383,44 @@ You can use your own conversation data with the demos:
 
 ---
 
+## Streaming Chat Demo
+
+A streaming variant of the Full-Featured Demo that displays LLM responses token-by-token for faster perceived latency.
+
+### Prerequisites
+
+Same as the Full-Featured Demo: API server running, memories extracted, `.env` configured.
+
+### Running
+
+```bash
+# Terminal 2: Run the streaming chat demo
+uv run python src/bootstrap.py demo/chat_with_memory_stream.py
+```
+
+### How It Differs from the Non-Streaming Version
+
+| Aspect | `chat_with_memory.py` | `chat_with_memory_stream.py` |
+|--------|----------------------|------------------------------|
+| LLM output | Waits for full response | Streams tokens as they arrive |
+| First visible response | After full generation | After first token (~700ms) |
+| Implementation | `ChatSession.chat()` | `ChatSessionStream.chat_stream()` |
+| Latency display | Total time only | First-chunk + total + speedup ratio |
+
+### Interactive Workflow
+
+Same language / scenario / group / retrieval-mode selection as the non-streaming version. Once in the chat loop, responses are printed incrementally with a timing indicator:
+
+```
+🤖 Assistant: [⚡ 702ms] Exercise improves physical health by ...
+```
+
+### Known Limitation
+
+The simplified prompt keys (`prompt_system_role_simple_*`) referenced by `session_stream.py` are not yet defined in `i18n_texts.py`. They fall back to the key name as the system prompt, which reduces response quality but does not cause errors. See [va-dev Handover](../dev_docs/va-dev-handover.md) for details.
+
+---
+
 ## See Also
 
 - [Usage Examples](USAGE_EXAMPLES.md) - All usage methods
@@ -390,3 +428,4 @@ You can use your own conversation data with the demos:
 - [Setup Guide](../installation/SETUP.md) - Installation and configuration
 - [Demo README](../../demo/README.md) - Comprehensive demo documentation
 - [Data Format](../../data/README.md) - Conversation data format specifications
+- [va-dev Handover](../dev_docs/va-dev-handover.md) - va-dev branch changes and verification

@@ -6,6 +6,25 @@ All notable changes to EverCore will be documented in this file.
 
 ---
 
+## [Unreleased] - va-dev branch
+
+### Added
+- `generate_stream()` method to `LLMProvider` protocol, `LLMProvider` proxy, and `OpenAIProvider` — SSE-based streaming LLM generation with first-chunk latency tracking
+
+### Fixed
+- `is_background_mode_enabled()` default `sync_mode` parameter changed from `"true"` to `"false"` so background mode is enabled by default, matching documentation
+- `SimpleMemoryManager.store()` now handles HTTP 202 Accepted responses from background-mode API
+
+### Infrastructure
+- `docker-compose.yaml`: added empty proxy env vars to `milvus-standalone` to prevent gRPC connection failures when host has `HTTP_PROXY` set
+
+### Demos
+- `demo/chat/session_stream.py`: streaming chat session (`ChatSessionStream`)
+- `demo/chat_with_memory_stream.py`: interactive streaming chat entry point
+- `demo/test_stream_demo.py`: non-interactive generate_stream() verification script
+
+---
+
 ## [1.2.0] - 2025-01-20
 
 ### Changed

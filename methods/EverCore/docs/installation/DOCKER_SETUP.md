@@ -377,6 +377,34 @@ netstat -an | grep 27017
 
 3. **Close other applications** to free up memory
 
+### Milvus Fails to Start Behind HTTP Proxy
+
+**Symptoms**: `milvus-standalone` container stays in `starting` / `unhealthy` state indefinitely. Container logs repeatedly show gRPC connection failures to etcd via address `127.0.0.1:1081`.
+
+**Cause**: The host machine has `HTTP_PROXY` / `HTTPS_PROXY` set. Docker containers inherit these environment variables, causing Milvus gRPC connections to etcd and MinIO to be routed through the proxy.
+
+**Fix**: Add empty proxy overrides to the `milvus-standalone` service in `docker-compose.yaml`:
+
+```yaml
+services:
+  milvus-standalone:
+    # ... existing config ...
+    environment:
+      # ... existing env vars ...
+      NO_PROXY: "milvus-etcd,milvus-minio,localhost,127.0.0.1"
+      no_proxy: "milvus-etcd,milvus-minio,localhost,127.0.0.1"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+```
+
+Then recreate the container:
+
+```bash
+docker compose up -d milvus-standalone
+```
+
 ### Connection Refused
 
 **Check service is running:**
